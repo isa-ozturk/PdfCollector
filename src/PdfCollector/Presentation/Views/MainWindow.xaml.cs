@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Specialized;
 using System.Windows;
 using PdfCollector.Core.Interfaces;
@@ -21,8 +22,13 @@ public partial class MainWindow : Window
         ((INotifyCollectionChanged)viewModel.LogEntries).CollectionChanged +=
             (_, _) =>
             {
-                if (LogList.Items.Count > 0)
-                    LogList.ScrollIntoView(LogList.Items[LogList.Items.Count - 1]);
+                // CollectionChanged handler içinde ScrollIntoView çağırmak
+                // ItemsGenerator'ı bozuyor; BeginInvoke ile sonraki frame'e erteliyoruz.
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (LogList.Items.Count > 0)
+                        LogList.ScrollIntoView(LogList.Items[LogList.Items.Count - 1]);
+                }));
             };
 
         updateService.UpdateAvailable += OnUpdateAvailable;

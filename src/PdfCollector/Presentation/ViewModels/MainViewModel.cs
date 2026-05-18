@@ -400,9 +400,13 @@ public class MainViewModel : ViewModelBase
 
     private void SyncLog()
     {
+        // Entries snapshot'ı lock altında alınıyor (LogService thread-safe)
         var entries = _log.Entries;
-        for (var i = LogEntries.Count; i < entries.Count; i++)
-            LogEntries.Add(new LogEntryViewModel(entries[i]));
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        {
+            for (var i = LogEntries.Count; i < entries.Count; i++)
+                LogEntries.Add(new LogEntryViewModel(entries[i]));
+        });
     }
 
     private static string GetAppVersion()
