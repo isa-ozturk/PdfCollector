@@ -17,6 +17,9 @@ public partial class UpdateWindow : Window
         InitializeComponent();
     }
 
+    private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        => DragMove();
+
     private void BtnLater_Click(object sender, RoutedEventArgs e) => Close();
 
     private async void BtnUpdate_Click(object sender, RoutedEventArgs e)
