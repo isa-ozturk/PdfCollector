@@ -1,0 +1,130 @@
+<Window x:Class="PdfCollector.Presentation.Views.PrintWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:cv="clr-namespace:PdfCollector.Presentation.Converters"
+        Title="PDF'leri Yazdır"
+        Width="480" Height="370"
+        MinWidth="420" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgPageBrush}"
+        Foreground="{StaticResource TextPrimaryBrush}"
+        FontFamily="Segoe UI"
+        ResizeMode="CanMinimize">
+
+    <Window.Resources>
+        <cv:AppBoolToVisConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ─── HEADER ──────────────────────────────────────────── -->
+        <Border Grid.Row="0"
+                Background="{StaticResource BgSurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="24,16,24,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        Width="40" Height="40"
+                        CornerRadius="8"
+                        Background="{StaticResource SuccessLightBrush}">
+                    <TextBlock Text="&#128424;"
+                               FontSize="18"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
+
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <TextBlock Text="PDF'leri Yazdır"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock x:Name="TxtPdfCount"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Margin="0,2,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ─── CONTENT ─────────────────────────────────────────── -->
+        <StackPanel Grid.Row="1" Margin="24,18,24,0" VerticalAlignment="Top">
+
+            <!-- Yazıcı seçimi -->
+            <TextBlock Text="Yazıcı"
+                       FontSize="12" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Margin="0,0,0,6"/>
+
+            <ComboBox x:Name="CmbPrinters" Height="38"/>
+
+            <!-- Durum kartı -->
+            <Border Margin="0,14,0,0"
+                    Background="{StaticResource BgSurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8"
+                    Padding="14,12">
+                <StackPanel>
+                    <TextBlock x:Name="TxtStatus"
+                               Text="Yazdırmak için bir yazıcı seçin."
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"/>
+                    <ProgressBar x:Name="PrgPrint"
+                                 Style="{StaticResource ModernProgressBar}"
+                                 IsIndeterminate="True"
+                                 Margin="0,10,0,0"
+                                 Height="3"
+                                 Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Açıklama -->
+            <TextBlock Margin="0,10,0,0"
+                       FontSize="11"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       TextWrapping="Wrap">
+                PDF'ler ZIP arşivinden geçici bir klasöre çıkartılır,
+                ardından seçili yazıcıya gönderilir.
+            </TextBlock>
+        </StackPanel>
+
+        <!-- ─── FOOTER ──────────────────────────────────────────── -->
+        <Border Grid.Row="2"
+                Background="{StaticResource BgSurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="24,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="8"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="1" x:Name="BtnCancel"
+                        Content="İptal"
+                        Style="{StaticResource SecondaryButton}"
+                        Padding="18,9"
+                        Click="BtnCancel_Click"/>
+
+                <Button Grid.Column="3" x:Name="BtnPrint"
+                        Content="&#128424;  Tümünü Yazdır"
+                        Style="{StaticResource SuccessButton}"
+                        Padding="18,9"
+                        Click="BtnPrint_Click"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

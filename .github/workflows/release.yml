@@ -1,0 +1,59 @@
+name: Build and Release PdfCollector
+
+on:
+  workflow_run:
+    workflows: ["Generate Changelog"]
+    types:
+      - completed
+
+jobs:
+  release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Read version from .version file
+        run: |
+          $version = (Get-Content .version).Trim()
+          echo "version=$version" >> $env:GITHUB_ENV
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Update AssemblyVersion in csproj
+        run: |
+          $v = "${{ env.version }}".TrimStart("v")
+          $csproj = "PdfCollector.csproj"
+          (Get-Content $csproj) `
+            -replace '<AssemblyVersion>.*?</AssemblyVersion>', "<AssemblyVersion>$v.0</AssemblyVersion>" `
+            -replace '<FileVersion>.*?</FileVersion>',         "<FileVersion>$v.0</FileVersion>" |
+            Set-Content $csproj
+
+      - name: Restore NuGet packages
+        run: msbuild PdfCollector.csproj /t:Restore /p:Configuration=Release
+
+      - name: Build PdfCollector
+        run: msbuild PdfCollector.csproj /p:Configuration=Release /p:Platform="Any CPU"
+
+      - name: Verify EXE exists
+        run: |
+          if (Test-Path "bin\Release\PdfCollector.exe") {
+            Write-Host "✅ EXE bulundu"
+          } else {
+            Get-ChildItem -Recurse -Filter "*.exe" | Select-Object FullName
+            Write-Error "❌ EXE bulunamadı"
+          }
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ env.version }} `
+            --title "${{ env.version }}" `
+            --notes-file CHANGELOG.md `
+            "bin\Release\PdfCollector.exe"

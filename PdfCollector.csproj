@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>PdfCollector</AssemblyName>
+    <RootNamespace>PdfCollector</RootNamespace>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <Nullable>disable</Nullable>
+    <LangVersion>11</LangVersion>
+    <Company>Lenze Türkiye - İsa Öztürk</Company>
+    <ApplicationIcon>file.ico</ApplicationIcon>
+    <Title>PDF Toplayıcı</Title>
+    <Authors>İsa Öztürk</Authors>
+    <Description>Alt klasörlerdeki PDF dosyalarını ZIP arşivine toplar ve yazdırır</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Printing" />
+    <Reference Include="ReachFramework" />
+  </ItemGroup>
+</Project>

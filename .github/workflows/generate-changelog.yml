@@ -1,0 +1,127 @@
+name: Generate Changelog
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Get current tag
+        id: vars
+        shell: bash
+        run: |
+          echo "current=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Find previous tag
+        id: previous
+        shell: bash
+        run: |
+          git fetch --tags --force
+
+          CURRENT_TAG="${{ steps.vars.outputs.current }}"
+
+          PREVIOUS_TAG=$(
+            git tag --sort=-version:refname \
+              | grep -Fxv "$CURRENT_TAG" \
+              | head -n 1 || true
+          )
+
+          echo "previous=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Generate grouped changelog
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          TAG="${{ steps.vars.outputs.current }}"
+          PREV="${{ steps.previous.outputs.previous }}"
+          TODAY="$(date +'%d %B %Y')"
+
+          {
+            echo "# $TAG - $TODAY"
+            echo
+          } > CHANGELOG.md
+
+          if [ -n "$PREV" ]; then
+            RANGE="$PREV..$TAG"
+          else
+            RANGE="$TAG"
+          fi
+
+          git log "$RANGE" --pretty=format:'%s' > subjects.txt
+
+          write_section() {
+            local pattern="$1"
+            local title="$2"
+
+            local tmp_file
+            tmp_file="$(mktemp)"
+            grep -Ei "$pattern" subjects.txt > "$tmp_file" || true
+
+            if [ -s "$tmp_file" ]; then
+              echo "## $title" >> CHANGELOG.md
+              echo >> CHANGELOG.md
+              while IFS= read -r line; do
+                clean_line="$(echo "$line" | sed -E 's/^(feat|fix|chore)(\([^)]*\))?:[[:space:]]*//I')"
+                echo "- $clean_line" >> CHANGELOG.md
+              done < "$tmp_file"
+              echo >> CHANGELOG.md
+            fi
+
+            rm -f "$tmp_file"
+          }
+
+          write_section '^feat(\([^)]*\))?:' '✨ Yeni Özellikler'
+          write_section '^fix(\([^)]*\))?:'  '🐞 Hata Düzeltmeleri'
+          write_section '^chore(\([^)]*\))?: ' '🧹 Diğer'
+
+          OTHER_COMMITS="$(mktemp)"
+          grep -Eiv '^(feat|fix|chore)(\([^)]*\))?:' subjects.txt > "$OTHER_COMMITS" || true
+
+          if [ -s "$OTHER_COMMITS" ]; then
+            echo "## 📌 Diğer Commitler" >> CHANGELOG.md
+            echo >> CHANGELOG.md
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "- $line" >> CHANGELOG.md
+            done < "$OTHER_COMMITS"
+            echo >> CHANGELOG.md
+          fi
+
+          rm -f subjects.txt "$OTHER_COMMITS"
+
+      - name: Write version to file
+        shell: bash
+        run: |
+          echo "${{ steps.vars.outputs.current }}" > .version
+
+      - name: Commit changelog and version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add CHANGELOG.md .version
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: update changelog and version for ${{ steps.vars.outputs.current }}"
+          git pull origin main --rebase || true
+          git push origin main
