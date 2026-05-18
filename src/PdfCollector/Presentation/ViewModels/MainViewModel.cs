@@ -301,8 +301,19 @@ public class MainViewModel : ViewModelBase
             if (result.Success && CloseAfterDone)
                 System.Windows.Application.Current.Shutdown();
         }
-        catch (Exception)
+        catch (OperationCanceledException)
         {
+            _log.Log(LogLevel.Warning, "İşlem iptal edildi.");
+            StatusMessage = "İşlem iptal edildi.";
+            SyncLog();
+            IsBusy = false;
+        }
+        catch (Exception ex)
+        {
+            _log.Log(LogLevel.Error, "Beklenmeyen hata: " + ex.Message);
+            _log.Log(LogLevel.Error, ex.GetType().Name + (ex.InnerException != null ? " → " + ex.InnerException.Message : string.Empty));
+            SyncLog();
+            StatusMessage = "Hata oluştu — log kayıtlarını inceleyin.";
             IsBusy = false;
         }
     }

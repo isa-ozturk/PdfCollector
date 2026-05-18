@@ -12,6 +12,18 @@ namespace PdfCollector
         {
             base.OnStartup(e);
 
+            DispatcherUnhandledException += (_, args) =>
+            {
+                var ex = args.Exception;
+                System.Windows.MessageBox.Show(
+                    "Beklenmeyen bir hata oluştu:\n\n" + ex.Message
+                    + (ex.InnerException != null ? "\n\n" + ex.InnerException.Message : string.Empty),
+                    "PdfCollector — Hata",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error);
+                args.Handled = true;
+            };
+
             var logService   = new LogService();
             var scanner      = new PdfScannerService();
             var zipper       = new ZipService();
