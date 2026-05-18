@@ -4,3 +4,15 @@
 
 - initial release v1.2.0
 
+## 🐞 Hata Düzeltmeleri
+
+- rename version env var to avoid MSBuild Version property conflict
+
+## 🧹 Diğer
+
+- update changelog and version for v1.2.0
+
+## 📌 Diğer Commitler
+
+- refactor: reorganize into src/PdfCollector layout
+
