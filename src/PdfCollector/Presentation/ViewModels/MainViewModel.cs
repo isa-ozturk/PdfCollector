@@ -61,12 +61,13 @@ public class MainViewModel : ViewModelBase
         _printSvc    = printSvc;
         _updateSvc   = updateSvc;
 
-        BrowseCommand    = new RelayCommand(Browse,       () => IsIdle);
-        StartCommand     = new RelayCommand(Start,        () => IsIdle && HasSourceDir);
-        CancelCommand    = new RelayCommand(Cancel,       () => IsBusy);
-        OpenResultCommand= new RelayCommand(OpenResult,   () => HasResult);
-        PrintCommand     = new RelayCommand(OpenPrint,    () => HasResult && IsIdle);
-        ClearLogCommand  = new RelayCommand(ClearLog,     () => LogEntries.Count > 0);
+        BrowseCommand       = new RelayCommand(Browse,          () => IsIdle);
+        StartCommand        = new RelayCommand(Start,           () => IsIdle && HasSourceDir);
+        CancelCommand       = new RelayCommand(Cancel,          () => IsBusy);
+        OpenResultCommand   = new RelayCommand(OpenResult,      () => HasResult);
+        PrintCommand        = new RelayCommand(OpenPrint,       () => HasResult && IsIdle);
+        PrintFromZipCommand = new RelayCommand(OpenPrintFromZip, () => IsIdle);
+        ClearLogCommand     = new RelayCommand(ClearLog,        () => LogEntries.Count > 0);
 
         LoadSettings();
 
@@ -121,6 +122,7 @@ public class MainViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(IsIdle));
                 PrintCommand.RaiseCanExecuteChanged();
+                PrintFromZipCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -168,12 +170,13 @@ public class MainViewModel : ViewModelBase
     public ObservableCollection<LogEntryViewModel> LogEntries { get; } = new();
 
     // ─── commands ─────────────────────────────────────────────────────────────
-    public RelayCommand BrowseCommand    { get; }
-    public RelayCommand StartCommand     { get; }
-    public RelayCommand CancelCommand    { get; }
-    public RelayCommand OpenResultCommand{ get; }
-    public RelayCommand PrintCommand     { get; }
-    public RelayCommand ClearLogCommand  { get; }
+    public RelayCommand BrowseCommand       { get; }
+    public RelayCommand StartCommand        { get; }
+    public RelayCommand CancelCommand       { get; }
+    public RelayCommand OpenResultCommand   { get; }
+    public RelayCommand PrintCommand        { get; }
+    public RelayCommand PrintFromZipCommand { get; }
+    public RelayCommand ClearLogCommand     { get; }
 
     // ─── update UI ────────────────────────────────────────────────────────────
     public string UpdateButtonLabel
@@ -335,6 +338,23 @@ public class MainViewModel : ViewModelBase
         if (string.IsNullOrEmpty(_lastZip) || !File.Exists(_lastZip)) return;
 
         var win = new PrintWindow(_printSvc, _lastZip)
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        win.ShowDialog();
+    }
+
+    private void OpenPrintFromZip()
+    {
+        using var dlg = new OpenFileDialog
+        {
+            Title  = "Yazdırılacak ZIP dosyasını seçin",
+            Filter = "ZIP Dosyaları (*.zip)|*.zip",
+            CheckFileExists = true
+        };
+        if (dlg.ShowDialog() != DialogResult.OK) return;
+
+        var win = new PrintWindow(_printSvc, dlg.FileName)
         {
             Owner = System.Windows.Application.Current.MainWindow
         };

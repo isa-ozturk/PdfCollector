@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Specialized;
 using System.Windows;
+using System.Windows.Input;
 using PdfCollector.Core.Interfaces;
 using PdfCollector.Presentation.ViewModels;
 
@@ -70,6 +71,11 @@ public partial class MainWindow : Window
         _updateWindow.Show();
     }
 
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        DragMove();
+    }
+
     private void BtnMinimize_Click(object sender, RoutedEventArgs e)
     {
         WindowState = WindowState.Minimized;
@@ -80,12 +86,16 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Maximized)
         {
             WindowState = WindowState.Normal;
-            BtnMaximize.Content = ""; // maximize icon
+            ShadowBorder.Margin     = new Thickness(10);
+            MaximizeIcon.Visibility = Visibility.Visible;
+            RestoreIcon.Visibility  = Visibility.Collapsed;
         }
         else
         {
             WindowState = WindowState.Maximized;
-            BtnMaximize.Content = ""; // restore icon
+            ShadowBorder.Margin     = new Thickness(0);
+            MaximizeIcon.Visibility = Visibility.Collapsed;
+            RestoreIcon.Visibility  = Visibility.Visible;
         }
     }
 
