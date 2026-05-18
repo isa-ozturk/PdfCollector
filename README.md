@@ -5,7 +5,7 @@
 <h1 align="center">PdfCollector</h1>
 
 <p align="center">
-  Alt klasörlerdeki PDF dosyalarını tek ZIP arşivinde toplayan, yazıcıya gönderen ve otomatik güncellenen Windows masaüstü uygulaması.
+  Alt klasörlerdeki PDF dosyalarını tek ZIP arşivinde toplayan, yazıcıya doğrudan gönderen ve otomatik güncellenen Windows masaüstü uygulaması.
 </p>
 
 <p align="center">
@@ -30,7 +30,10 @@
 |---|---|
 | **PDF Toplama** | Seçilen klasör ve tüm alt klasörlerindeki PDF dosyalarını otomatik tarar |
 | **ZIP Arşivleme** | Bulunan tüm PDF'leri tek bir `.zip` dosyasında toplar |
-| **Yazıcıya Gönder** | ZIP içindeki PDF'leri kurulu yazıcılardan birine doğrudan yazdırır |
+| **Yazıcıya Gönder** | ZIP içindeki PDF'leri seçilen yazıcıya doğrudan gönderir; progress bar ile dosya bazında ilerleme gösterilir |
+| **ZIP'ten Yazdır** | Daha önce oluşturulmuş herhangi bir ZIP dosyasını seçerek yazdırma başlatılabilir |
+| **SumatraPDF Entegrasyonu** | Sisteme PDF görüntüleyici kurulmadan güvenilir yazdırma; SumatraPDF yoksa uygulama üzerinden otomatik indirilebilir |
+| **Sistem Durumu** | Başlık çubuğundaki durum butonu yazıcı, SumatraPDF ve PDF görüntüleyici sağlığını anlık gösterir |
 | **Klasör Temizleme** | İşlem sonrasında kaynak PDF dosyalarını isteğe bağlı olarak siler |
 | **İşlem Kaydı** | Tüm adımlar gerçek zamanlı log listesinde gösterilir, dosyaya kaydedilebilir |
 | **Otomatik Güncelleme** | GitHub Releases üzerinden yeni sürüm kontrolü ve tek tıkla güncelleme |
@@ -46,6 +49,12 @@
 
 > Uygulama, ayarlarını çalıştırıldığı dizindeki `PdfCollector.settings.json` dosyasına kaydeder.
 
+### SumatraPDF (PDF Yazdırma Motoru)
+
+PDF yazdırma işlemi için sisteme ayrı bir PDF görüntüleyici kurulmasına gerek yoktur. Uygulama, ilk başlangıçta SumatraPDF'in kurulu olup olmadığını kontrol eder ve eksikse indirmenizi önerir.
+
+İndirmeyi isterseniz **Sistem Durumu** butonuna veya açılış uyarısına tıklayarak SumatraPDF'i otomatik olarak indirebilirsiniz (~20 MB).
+
 ### Gereksinimler
 
 - Windows 10 / 11 (64-bit)
@@ -57,8 +66,21 @@
 
 1. **Klasör Seç** — Taranan kök klasörü seçin. Alt klasörler dahil tüm PDF'ler bulunur.
 2. **Topla ve Sıkıştır** — Bulunan PDF'ler belirlenen hedefe `.zip` olarak arşivlenir.
-3. **Yazdır** *(isteğe bağlı)* — ZIP oluşturulduktan sonra **Yazdır** butonuna tıklayın, yazıcı seçin ve onaylayın.
-4. **Seçenekler** — Kaynak dosyaları sil, işlem kaydını dosyaya yaz, işlem bitince uygulamayı kapat gibi seçenekleri etkinleştirin.
+3. **Yazdır** *(isteğe bağlı)* — ZIP oluşturulduktan sonra **Yazdır** butonuna tıklayın, yazıcı seçin ve onaylayın. Progress bar dosya dosya ilerlemeyi gösterir.
+4. **ZIP'ten Yazdır** — Daha önce oluşturulmuş bir ZIP dosyasını seçerek doğrudan yazdırmaya başlayın.
+5. **Seçenekler** — Kaynak dosyaları sil, işlem kaydını dosyaya yaz, işlem bitince uygulamayı kapat gibi seçenekleri etkinleştirin.
+
+### Sistem Durumu
+
+Başlık çubuğundaki **Sistem Durumu** butonu tıklandığında bir kontrol penceresi açılır:
+
+| Bileşen | Kontrol |
+|---|---|
+| Yazıcılar | Kurulu yazıcı olup olmadığı |
+| SumatraPDF | Uygulama dizininde `Tools/SumatraPDF.exe` varlığı |
+| PDF Görüntüleyici | Windows kayıt defterinde `.pdf` uzantısı |
+
+Buton rengi genel sağlık durumunu özetler: **yeşil** = tümü sağlıklı, **turuncu** = dikkat, **kırmızı** = sorun var.
 
 ### Otomatik Güncelleme
 
@@ -70,7 +92,7 @@ Uygulama her başlangıçta GitHub Releases API'sini sorgular. Yeni sürüm bulu
 
 ```bash
 git clone https://github.com/isa-ozturk/PdfCollector.git
-cd PdfCollector
+cd PdfCollector/src/PdfCollector
 dotnet build PdfCollector.csproj
 ```
 
@@ -89,28 +111,40 @@ dotnet build PdfCollector.csproj -c Release
 ## Proje Yapısı
 
 ```
-PdfCollector/
+src/PdfCollector/
 ├── Core/                       # Alan modelleri ve arayüzler (bağımlılıksız)
 │   ├── Interfaces/
-│   └── Models/
+│   │   └── Interfaces.cs       # IPrintService, IUpdateService, IHealthCheckService, ZipProgress, PrintProgress…
+│   └── Models/                 # LogEntry, PdfFileInfo, UpdateInfo, HealthCheckItem…
 ├── Application/                # İş mantığı, uygulama servisleri
 │   ├── DTOs/
 │   └── Services/
 ├── Infrastructure/             # Harici servis implementasyonları
-│   └── Services/               # ZipService, PdfScannerService, UpdateService, PrintService…
+│   └── Services/
+│       ├── AppSettingsService.cs   # JSON ayar kalıcılığı
+│       ├── HealthCheckService.cs   # Yazıcı / SumatraPDF / PDF viewer kontrolü + indirme
+│       ├── PrintService.cs         # ZIP → SumatraPDF veya shell verb ile yazdırma
+│       ├── UpdateService.cs        # GitHub Releases API güncelleme
+│       └── …
 ├── Presentation/               # WPF katmanı (MVVM)
 │   ├── Commands/
 │   ├── Converters/
 │   ├── ViewModels/
+│   │   ├── MainViewModel.cs
+│   │   ├── HealthCheckViewModel.cs
+│   │   └── UpdateViewModel.cs
 │   └── Views/
+│       ├── MainWindow.xaml(.cs)
+│       ├── HealthCheckWindow.xaml(.cs)
+│       ├── SumatraPdfPromptWindow.xaml(.cs)
+│       ├── PrintWindow.xaml(.cs)
+│       └── UpdateWindow.xaml(.cs)
 ├── Themes/
-│   └── Dark.xaml               # Windows 11 Fluent tasarım teması
-├── .github/
-│   └── workflows/
-│       ├── generate-changelog.yml
-│       └── release.yml
-├── CHANGELOG.md
-└── PdfCollector.csproj
+│   └── Styles.xaml             # Windows 11 Fluent tasarım teması (tüm brush ve stiller)
+└── .github/
+    └── workflows/
+        ├── generate-changelog.yml
+        └── release.yml
 ```
 
 ---
@@ -120,7 +154,8 @@ PdfCollector/
 - **Platform:** .NET Framework 4.7.2 + WPF
 - **Dil:** C# 11
 - **Mimari:** Clean Architecture + MVVM
-- **Tema:** Windows 11 Fluent Design (özel başlık çubuğu, WindowChrome)
+- **Tema:** Windows 11 Fluent Design (özel başlık çubuğu, `AllowsTransparency`, drop shadow, yuvarlak köşeler)
+- **Yazdırma:** SumatraPDF (portable, otomatik indirilebilir) + shell verb fallback
 - **Güncelleme:** GitHub Releases API + PowerShell installer
 - **CI/CD:** GitHub Actions — MSBuild ile derleme, otomatik Release yayınlama
 - **Harici bağımlılık yok** — NuGet paketi kullanılmamıştır

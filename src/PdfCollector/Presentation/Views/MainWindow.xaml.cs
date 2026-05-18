@@ -9,16 +9,19 @@ namespace PdfCollector.Presentation.Views;
 
 public partial class MainWindow : Window
 {
-    private readonly MainViewModel  _vm;
-    private readonly IUpdateService _updateService;
-    private          UpdateWindow   _updateWindow;
+    private readonly MainViewModel       _vm;
+    private readonly IUpdateService      _updateService;
+    private readonly IHealthCheckService _healthService;
+    private          UpdateWindow        _updateWindow;
+    private          HealthCheckWindow   _healthWindow;
 
-    public MainWindow(MainViewModel viewModel, IUpdateService updateService)
+    public MainWindow(MainViewModel viewModel, IUpdateService updateService, IHealthCheckService healthService)
     {
         InitializeComponent();
-        DataContext    = viewModel;
-        _vm            = viewModel;
-        _updateService = updateService;
+        DataContext     = viewModel;
+        _vm             = viewModel;
+        _updateService  = updateService;
+        _healthService  = healthService;
 
         ((INotifyCollectionChanged)viewModel.LogEntries).CollectionChanged +=
             (_, _) =>
@@ -32,7 +35,8 @@ public partial class MainWindow : Window
                 }));
             };
 
-        updateService.UpdateAvailable += OnUpdateAvailable;
+        updateService.UpdateAvailable       += OnUpdateAvailable;
+        viewModel.SumatraPdfDownloadRequested += OnSumatraPdfDownloadRequested;
     }
 
     private void OnUpdateAvailable(object sender, Core.Models.UpdateInfo info)
@@ -104,6 +108,29 @@ public partial class MainWindow : Window
         Close();
     }
 
+    private void OnSumatraPdfDownloadRequested(object sender, EventArgs e)
+    {
+        Dispatcher.Invoke(ShowHealthCheckWindow);
+    }
+
+    private void BtnHealth_Click(object sender, RoutedEventArgs e)
+    {
+        ShowHealthCheckWindow();
+    }
+
+    private void ShowHealthCheckWindow()
+    {
+        if (_healthWindow?.IsVisible == true)
+        {
+            _healthWindow.Activate();
+            return;
+        }
+
+        _healthWindow = new HealthCheckWindow(_healthService) { Owner = this };
+        _healthWindow.Closed += async (_, _) => await _vm.RefreshHealthAsync();
+        _healthWindow.Show();
+    }
+
     private void BtnInfo_Click(object sender, RoutedEventArgs e)
     {
         InfoPopup.IsOpen = !InfoPopup.IsOpen;
@@ -111,7 +138,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(System.EventArgs e)
     {
-        _updateService.UpdateAvailable -= OnUpdateAvailable;
+        _updateService.UpdateAvailable           -= OnUpdateAvailable;
+        _vm.SumatraPdfDownloadRequested          -= OnSumatraPdfDownloadRequested;
         base.OnClosed(e);
     }
 }

@@ -3,6 +3,7 @@ using PdfCollector.Application.Services;
 using PdfCollector.Infrastructure.Services;
 using PdfCollector.Presentation.ViewModels;
 using PdfCollector.Presentation.Views;
+using PdfCollector.Core.Interfaces;
 
 namespace PdfCollector
 {
@@ -31,11 +32,12 @@ namespace PdfCollector
             var settingsSvc  = new AppSettingsService();
             var printSvc     = new PrintService();
             var updateSvc    = new UpdateService();
+            var healthSvc    = new HealthCheckService();
 
             var collectionSvc = new PdfCollectionService(scanner, zipper, cleanup, logService);
 
-            var viewModel = new MainViewModel(collectionSvc, logService, settingsSvc, printSvc, updateSvc);
-            var mainWindow = new MainWindow(viewModel, updateSvc);
+            var viewModel  = new MainViewModel(collectionSvc, logService, settingsSvc, printSvc, updateSvc, healthSvc);
+            var mainWindow = new MainWindow(viewModel, updateSvc, healthSvc);
             mainWindow.Show();
         }
     }

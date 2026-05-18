@@ -13,41 +13,39 @@ namespace PdfCollector.Infrastructure.Services;
 
 public class PrintService : IPrintService
 {
-    public Task<List<string>> GetAvailablePrintersAsync()
-    {
-        return Task.Run(() =>
-        {
-            var list = new List<string>();
-            foreach (string name in PrinterSettings.InstalledPrinters)
-                list.Add(name);
-            return list;
-        });
-    }
+    private static string SumatraPdfPath =>
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools", "SumatraPDF.exe");
 
-    public Task<int> GetPdfCountInZipAsync(string zipPath)
+    public Task<List<string>> GetAvailablePrintersAsync() => Task.Run(() =>
     {
-        return Task.Run(() =>
-        {
-            if (!File.Exists(zipPath)) return 0;
-            using var archive = ZipFile.OpenRead(zipPath);
-            return archive.Entries.Count(e =>
-                e.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
-        });
-    }
+        var list = new List<string>();
+        foreach (string name in PrinterSettings.InstalledPrinters)
+            list.Add(name);
+        return list;
+    });
+
+    public Task<int> GetPdfCountInZipAsync(string zipPath) => Task.Run(() =>
+    {
+        if (!File.Exists(zipPath)) return 0;
+        using var archive = ZipFile.OpenRead(zipPath);
+        return archive.Entries.Count(e =>
+            e.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
+    });
 
     public async Task PrintPdfsFromZipAsync(
         string zipPath,
         string printerName,
-        IProgress<string> progress,
+        IProgress<PrintProgress> progress,
         CancellationToken ct)
     {
-        var tempDir = Path.Combine(Path.GetTempPath(), "PdfCollector_Print_" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        var tempDir = Path.Combine(
+            Path.GetTempPath(),
+            "PdfCollector_Print_" + Guid.NewGuid().ToString("N").Substring(0, 8));
         Directory.CreateDirectory(tempDir);
 
         try
         {
-            // ZIP'ten PDF dosyalarını çıkart
-            List<string> pdfPaths = await Task.Run(() =>
+            var pdfPaths = await Task.Run(() =>
             {
                 using var archive = ZipFile.OpenRead(zipPath);
                 var entries = archive.Entries
@@ -67,29 +65,31 @@ public class PrintService : IPrintService
 
             if (pdfPaths.Count == 0)
             {
-                progress?.Report("ZIP arşivinde PDF bulunamadı.");
+                progress?.Report(new PrintProgress { Current = 0, Total = 0, IsDone = true });
                 return;
             }
 
-            // Her PDF'yi yazdır
+            var useSumatra = File.Exists(SumatraPdfPath);
+
             for (int i = 0; i < pdfPaths.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
                 var pdf  = pdfPaths[i];
                 var name = Path.GetFileName(pdf);
-                progress?.Report($"Yazdırılıyor ({i + 1}/{pdfPaths.Count}): {name}");
+                progress?.Report(new PrintProgress { Current = i + 1, Total = pdfPaths.Count, CurrentFile = name });
 
-                await PrintSinglePdfAsync(pdf, printerName);
+                if (useSumatra)
+                    await PrintWithSumatraAsync(pdf, printerName);
+                else
+                    await PrintWithShellVerbAsync(pdf, printerName);
 
-                // Yazıcı kuyruğuna teslim için bekleme
-                await Task.Delay(1200, ct);
+                await Task.Delay(useSumatra ? 500 : 1200, ct);
             }
 
-            progress?.Report($"Tamamlandı  ·  {pdfPaths.Count} PDF yazıcıya gönderildi.");
+            progress?.Report(new PrintProgress { Current = pdfPaths.Count, Total = pdfPaths.Count, IsDone = true });
         }
         finally
         {
-            // Kısa bekle, sonra temizle (yazıcı kuyruğunun dosyayı okuması için)
             _ = Task.Delay(8000).ContinueWith(_ =>
             {
                 try { Directory.Delete(tempDir, recursive: true); } catch { }
@@ -97,38 +97,52 @@ public class PrintService : IPrintService
         }
     }
 
-    private static Task PrintSinglePdfAsync(string pdfPath, string printerName)
+    // ── SumatraPDF ile yazdır — güvenilir, PDF viewer gerektirmez ──────────
+    private static Task PrintWithSumatraAsync(string pdfPath, string printerName)
     {
         return Task.Run(() =>
         {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    UseShellExecute = true,
-                    WindowStyle     = ProcessWindowStyle.Hidden
-                };
+            var args = string.IsNullOrWhiteSpace(printerName)
+                ? $"-print-to-default \"{pdfPath}\""
+                : $"-print-to \"{printerName}\" \"{pdfPath}\"";
 
-                if (string.IsNullOrWhiteSpace(printerName))
-                {
-                    psi.FileName = pdfPath;
-                    psi.Verb     = "print";
-                }
-                else
-                {
-                    psi.FileName   = pdfPath;
-                    psi.Verb       = "printto";
-                    psi.Arguments  = $"\"{printerName}\"";
-                }
-
-                using var proc = Process.Start(psi);
-                // Yazıcı işlemi başlatıldı; spooler'ın teslim alması için beklemeye gerek yok
-            }
-            catch (Exception ex)
+            var psi = new ProcessStartInfo
             {
-                Debug.WriteLine($"[PrintService] {Path.GetFileName(pdfPath)} yazdırılamadı: {ex.Message}");
-                throw;
+                FileName        = SumatraPdfPath,
+                Arguments       = args,
+                UseShellExecute = false,
+                WindowStyle     = ProcessWindowStyle.Hidden,
+                CreateNoWindow  = true
+            };
+
+            using var proc = Process.Start(psi);
+            proc?.WaitForExit(15_000);
+        });
+    }
+
+    // ── Sistem PDF viewer ile yazdır — fallback ────────────────────────────
+    private static Task PrintWithShellVerbAsync(string pdfPath, string printerName)
+    {
+        return Task.Run(() =>
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName        = pdfPath,
+                UseShellExecute = true,
+                WindowStyle     = ProcessWindowStyle.Hidden
+            };
+
+            if (string.IsNullOrWhiteSpace(printerName))
+            {
+                psi.Verb = "print";
             }
+            else
+            {
+                psi.Verb      = "printto";
+                psi.Arguments = $"\"{printerName}\"";
+            }
+
+            using var proc = Process.Start(psi);
         });
     }
 }

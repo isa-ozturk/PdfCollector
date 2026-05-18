@@ -12,7 +12,8 @@ public class AppSettings
     [DataMember] public bool   SaveLog             { get; set; }
     [DataMember] public bool   CloseAfterDone      { get; set; }
     [DataMember] public string LastDirectory       { get; set; } = string.Empty;
-    [DataMember] public bool   AutoCheckForUpdates { get; set; } = true;
+    [DataMember] public bool   AutoCheckForUpdates      { get; set; } = true;
+    [DataMember] public bool   SumatraPdfPromptDeclined { get; set; }
 }
 
 public class AppSettingsService

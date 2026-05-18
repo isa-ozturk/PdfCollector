@@ -63,7 +63,27 @@ public partial class PrintWindow : Window
 
         try
         {
-            var progress = new Progress<string>(msg => TxtStatus.Text = msg);
+            var progress = new Progress<Core.Interfaces.PrintProgress>(p =>
+            {
+                PrgPrint.Maximum = p.Total > 0 ? p.Total : 1;
+
+                if (p.IsDone)
+                {
+                    PrgPrint.Value         = PrgPrint.Maximum;
+                    TxtStatus.Text         = p.Total > 0
+                        ? $"Tamamlandı  ·  {p.Total} PDF yazıcıya gönderildi."
+                        : "ZIP arşivinde yazdırılacak PDF bulunamadı.";
+                    TxtFileCount.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    PrgPrint.Value          = p.Current - 1;
+                    TxtStatus.Text          = $"Yazdırılıyor: {p.CurrentFile}";
+                    TxtFileCount.Text       = $"{p.Current} / {p.Total}";
+                    TxtFileCount.Visibility = Visibility.Visible;
+                }
+            });
+
             await _printService.PrintPdfsFromZipAsync(_zipPath, selectedPrinter, progress, _cts.Token);
 
             BtnCancel.Content   = "Kapat";
@@ -71,16 +91,18 @@ public partial class PrintWindow : Window
         }
         catch (OperationCanceledException)
         {
-            TxtStatus.Text      = "Yazdırma iptal edildi.";
-            BtnCancel.IsEnabled = true;
+            TxtStatus.Text          = "Yazdırma iptal edildi.";
+            TxtFileCount.Visibility = Visibility.Collapsed;
+            BtnCancel.IsEnabled     = true;
         }
         catch (Exception ex)
         {
             TxtStatus.Text = $"Hata: {ex.Message}";
             MessageBox.Show($"Yazdırma sırasında bir hata oluştu:\n{ex.Message}",
                 "Yazdırma Hatası", MessageBoxButton.OK, MessageBoxImage.Error);
-            BtnPrint.IsEnabled  = true;
-            BtnCancel.IsEnabled = true;
+            BtnPrint.IsEnabled      = true;
+            BtnCancel.IsEnabled     = true;
+            TxtFileCount.Visibility = Visibility.Collapsed;
         }
         finally
         {

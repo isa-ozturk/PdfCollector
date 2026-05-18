@@ -194,6 +194,15 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Sistem Durumu butonu -->
+                    <Button x:Name="BtnHealth"
+                            Style="{StaticResource UpdateButton}"
+                            Content="{Binding HealthButtonLabel, Mode=OneWay}"
+                            Foreground="{Binding HealthButtonColor, Mode=OneWay}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,4,0"
+                            Click="BtnHealth_Click"/>
+
                     <!-- Güncelleme butonu -->
                     <Button x:Name="BtnUpdate"
                             Style="{StaticResource UpdateButton}"

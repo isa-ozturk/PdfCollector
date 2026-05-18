@@ -94,3 +94,37 @@ public class AppInverseBoolToVisConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => value is Visibility v && v == Visibility.Collapsed;
 }
+
+// AllHealthy (bool) → ön plan renk (yeşil/turuncu)
+public class AppHealthToColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var ok = value is bool b && b;
+        return ok
+            ? new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10))
+            : new SolidColorBrush(Color.FromRgb(0xCA, 0x50, 0x10));
+    }
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotImplementedException();
+}
+
+// AllHealthy (bool) → arka plan renk (açık yeşil/açık turuncu)
+public class AppHealthToBgColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var ok = value is bool b && b;
+        return ok
+            ? Color.FromRgb(0xDF, 0xF6, 0xDD)   // SuccessLightBrush
+            : Color.FromRgb(0xFF, 0xF4, 0xCE);  // WarningLightBrush
+    }
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotImplementedException();
+}
+
+// AllHealthy (bool) → ikon metni
+public class AppHealthToIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is bool b && b ? "✓" : "⚠";
+    public object ConvertBack(object v, Type t, object p, CultureInfo c) => throw new NotImplementedException();
+}

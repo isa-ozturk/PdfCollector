@@ -22,11 +22,12 @@ namespace PdfCollector.Presentation.ViewModels;
 public class MainViewModel : ViewModelBase
 {
     // ─── services ────────────────────────────────────────────────────────────
-    private readonly ILogService         _log;
-    private readonly AppSettingsService  _settingsSvc;
+    private readonly ILogService          _log;
+    private readonly AppSettingsService   _settingsSvc;
     private readonly PdfCollectionService _svc;
-    private readonly IPrintService       _printSvc;
-    private readonly IUpdateService      _updateSvc;
+    private readonly IPrintService        _printSvc;
+    private readonly IUpdateService       _updateSvc;
+    private readonly IHealthCheckService  _healthSvc;
 
     // ─── backing fields ───────────────────────────────────────────────────────
     private bool   _closeAfterDone;
@@ -45,21 +46,27 @@ public class MainViewModel : ViewModelBase
 
     // ─── update state ─────────────────────────────────────────────────────────
     private enum UpdateState { Idle, Checking, UpToDate, Available, Error }
-    private UpdateState _updateState = UpdateState.Idle;
+    private UpdateState _updateState   = UpdateState.Idle;
     private string      _updateVersion = string.Empty;
+
+    // ─── health state ─────────────────────────────────────────────────────────
+    private enum HealthState { Idle, Checking, Healthy, Warning, Error }
+    private HealthState _healthState = HealthState.Idle;
 
     public MainViewModel(
         PdfCollectionService  svc,
         ILogService           log,
         AppSettingsService    settingsSvc,
         IPrintService         printSvc,
-        IUpdateService        updateSvc)
+        IUpdateService        updateSvc,
+        IHealthCheckService   healthSvc)
     {
-        _svc         = svc;
-        _log         = log;
+        _svc       = svc;
+        _log       = log;
         _settingsSvc = settingsSvc;
-        _printSvc    = printSvc;
-        _updateSvc   = updateSvc;
+        _printSvc  = printSvc;
+        _updateSvc = updateSvc;
+        _healthSvc = healthSvc;
 
         BrowseCommand       = new RelayCommand(Browse,          () => IsIdle);
         StartCommand        = new RelayCommand(Start,           () => IsIdle && HasSourceDir);
@@ -74,6 +81,9 @@ public class MainViewModel : ViewModelBase
         // Başlangıçta güncelleme kontrolü
         if (_settingsSvc.Settings.AutoCheckForUpdates)
             _ = StartupUpdateCheckAsync();
+
+        // Başlangıçta sağlık kontrolü
+        _ = StartupHealthCheckAsync();
     }
 
     // ─── public properties ────────────────────────────────────────────────────
@@ -178,6 +188,24 @@ public class MainViewModel : ViewModelBase
     public RelayCommand PrintFromZipCommand { get; }
     public RelayCommand ClearLogCommand     { get; }
 
+    // ─── health UI ────────────────────────────────────────────────────────────
+    public string HealthButtonLabel => _healthState switch
+    {
+        HealthState.Checking => "⏳  Kontrol ediliyor...",
+        HealthState.Healthy  => "✓  Sağlıklı",
+        HealthState.Warning  => "⚠  Dikkat Gerektiriyor",
+        HealthState.Error    => "✕  Sorun Var",
+        _                    => "🔍  Sistem Durumu"
+    };
+
+    public Brush HealthButtonColor => _healthState switch
+    {
+        HealthState.Healthy => new SolidColorBrush(Color.FromRgb(0x10, 0x7C, 0x10)),
+        HealthState.Warning => new SolidColorBrush(Color.FromRgb(0xCA, 0x50, 0x10)),
+        HealthState.Error   => new SolidColorBrush(Color.FromRgb(0xC4, 0x2B, 0x1C)),
+        _                   => new SolidColorBrush(Color.FromRgb(0x4B, 0x55, 0x63))
+    };
+
     // ─── update UI ────────────────────────────────────────────────────────────
     public string UpdateButtonLabel
     {
@@ -231,11 +259,12 @@ public class MainViewModel : ViewModelBase
     {
         AppSettingsService.Save(new AppSettings
         {
-            DeleteAfterZip       = _deleteAfter,
-            SaveLog              = _saveLog,
-            CloseAfterDone       = _closeAfterDone,
-            LastDirectory        = _sourceDir,
-            AutoCheckForUpdates  = _settingsSvc.Settings.AutoCheckForUpdates
+            DeleteAfterZip           = _deleteAfter,
+            SaveLog                  = _saveLog,
+            CloseAfterDone           = _closeAfterDone,
+            LastDirectory            = _sourceDir,
+            AutoCheckForUpdates      = _settingsSvc.Settings.AutoCheckForUpdates,
+            SumatraPdfPromptDeclined = _settingsSvc.Settings.SumatraPdfPromptDeclined
         });
     }
 
@@ -336,6 +365,7 @@ public class MainViewModel : ViewModelBase
     private void OpenPrint()
     {
         if (string.IsNullOrEmpty(_lastZip) || !File.Exists(_lastZip)) return;
+        if (!ConfirmPrintWithoutSumatra()) return;
 
         var win = new PrintWindow(_printSvc, _lastZip)
         {
@@ -348,11 +378,12 @@ public class MainViewModel : ViewModelBase
     {
         using var dlg = new OpenFileDialog
         {
-            Title  = "Yazdırılacak ZIP dosyasını seçin",
-            Filter = "ZIP Dosyaları (*.zip)|*.zip",
+            Title           = "Yazdırılacak ZIP dosyasını seçin",
+            Filter          = "ZIP Dosyaları (*.zip)|*.zip",
             CheckFileExists = true
         };
         if (dlg.ShowDialog() != DialogResult.OK) return;
+        if (!ConfirmPrintWithoutSumatra()) return;
 
         var win = new PrintWindow(_printSvc, dlg.FileName)
         {
@@ -361,10 +392,50 @@ public class MainViewModel : ViewModelBase
         win.ShowDialog();
     }
 
+    // SumatraPDF yoksa kullanıcıya sor; false dönerse yazdırma iptal edilir
+    private bool ConfirmPrintWithoutSumatra()
+    {
+        if (_healthSvc.IsSumatraPdfAvailable) return true;
+
+        var win = new SumatraPdfPromptWindow
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        win.ShowDialog();
+
+        if (win.Result == SumatraPdfPromptResult.Download)
+        {
+            SumatraPdfDownloadRequested?.Invoke(this, EventArgs.Empty);
+            return false; // PrintWindow açılmaz, önce indir
+        }
+
+        // "Şimdi Değil" → devam et (shell verb ile); "Hayır, Sorma" → da devam et ama kaydet
+        if (win.Result == SumatraPdfPromptResult.Decline)
+        {
+            _settingsSvc.Settings.SumatraPdfPromptDeclined = true;
+            SaveSettings();
+        }
+
+        return true; // Later veya Decline → shell verb ile devam
+    }
+
     private void ClearLog()
     {
         _log.Clear();
         LogEntries.Clear();
+    }
+
+    // Kullanıcı SumatraPDF indirmek istediğinde MainWindow tetiklenir
+    public event EventHandler SumatraPdfDownloadRequested;
+
+    // HealthCheckWindow kapandıktan sonra göstergeyi güncelle
+    public async Task RefreshHealthAsync()
+    {
+        SetHealthState(HealthState.Checking);
+        var items    = await _healthSvc.RunChecksAsync();
+        var hasError = items.Exists(i => i.Status == Core.Models.HealthStatus.Error);
+        var hasWarn  = items.Exists(i => i.Status == Core.Models.HealthStatus.Warning);
+        SetHealthState(hasError ? HealthState.Error : hasWarn ? HealthState.Warning : HealthState.Healthy);
     }
 
     // ─── update ───────────────────────────────────────────────────────────────
@@ -391,8 +462,52 @@ public class MainViewModel : ViewModelBase
 
     private async Task StartupUpdateCheckAsync()
     {
-        await Task.Delay(2000); // UI tamamen yüklendikten sonra kontrol
+        await Task.Delay(2000);
         await CheckForUpdatesAsync();
+    }
+
+    private async Task StartupHealthCheckAsync()
+    {
+        await Task.Delay(3000); // Güncelleme kontrolünden sonra başlat
+        SetHealthState(HealthState.Checking);
+        var items = await _healthSvc.RunChecksAsync();
+
+        var hasError   = items.Exists(i => i.Status == Core.Models.HealthStatus.Error);
+        var hasWarning = items.Exists(i => i.Status == Core.Models.HealthStatus.Warning);
+
+        SetHealthState(hasError ? HealthState.Error : hasWarning ? HealthState.Warning : HealthState.Healthy);
+
+        if (!_healthSvc.IsSumatraPdfAvailable && !_settingsSvc.Settings.SumatraPdfPromptDeclined)
+        {
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(ShowStartupSumatraPrompt);
+        }
+    }
+
+    private void ShowStartupSumatraPrompt()
+    {
+        var win = new SumatraPdfPromptWindow
+        {
+            Owner = System.Windows.Application.Current.MainWindow
+        };
+        win.ShowDialog();
+
+        if (win.Result == SumatraPdfPromptResult.Download)
+        {
+            SumatraPdfDownloadRequested?.Invoke(this, EventArgs.Empty);
+        }
+        else if (win.Result == SumatraPdfPromptResult.Decline)
+        {
+            _settingsSvc.Settings.SumatraPdfPromptDeclined = true;
+            SaveSettings();
+        }
+        // Later → bir sonraki başlangıçta tekrar sorulur
+    }
+
+    private void SetHealthState(HealthState state)
+    {
+        _healthState = state;
+        OnPropertyChanged(nameof(HealthButtonLabel));
+        OnPropertyChanged(nameof(HealthButtonColor));
     }
 
     private void SetUpdateState(UpdateState state)
