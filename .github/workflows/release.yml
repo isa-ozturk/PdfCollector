@@ -24,9 +24,6 @@ jobs:
           echo "RELEASE_TAG=$tag" >> $env:GITHUB_ENV
           echo "RELEASE_VER=$num" >> $env:GITHUB_ENV
 
-      - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
-
       - name: Update AssemblyVersion in csproj
         run: |
           $csproj = "src\PdfCollector\PdfCollector.csproj"
@@ -36,18 +33,16 @@ jobs:
             -replace '<FileVersion>.*?</FileVersion>',         "<FileVersion>$v.0</FileVersion>" |
             Set-Content $csproj
 
-      - name: Restore NuGet packages
-        run: msbuild src\PdfCollector\PdfCollector.csproj /t:Restore /p:Configuration=Release
-
-      - name: Build PdfCollector
-        run: msbuild src\PdfCollector\PdfCollector.csproj /p:Configuration=Release /p:Platform="Any CPU"
+      - name: Publish PdfCollector
+        run: dotnet publish src/PdfCollector/PdfCollector.csproj -c Release --output publish/
 
       - name: Verify EXE exists
         run: |
-          if (Test-Path "src\PdfCollector\bin\Release\net472\PdfCollector.exe") {
+          if (Test-Path "publish\PdfCollector.exe") {
             Write-Host "✅ EXE bulundu"
           } else {
-            Get-ChildItem -Recurse -Filter "*.exe" | Select-Object FullName
+            Write-Host "publish/ içeriği:"
+            Get-ChildItem publish\ -Recurse | Select-Object FullName
             Write-Error "❌ EXE bulunamadı"
           }
 
@@ -58,4 +53,4 @@ jobs:
           gh release create ${{ env.RELEASE_TAG }} `
             --title "${{ env.RELEASE_TAG }}" `
             --notes-file CHANGELOG.md `
-            "src\PdfCollector\bin\Release\net472\PdfCollector.exe"
+            "publish\PdfCollector.exe"
