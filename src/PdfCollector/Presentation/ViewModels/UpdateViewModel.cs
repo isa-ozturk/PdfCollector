@@ -1,18 +1,19 @@
 using System.Collections.Generic;
+using System.Text;
 using PdfCollector.Core.Models;
 
 namespace PdfCollector.Presentation.ViewModels;
 
 public class UpdateViewModel : ViewModelBase
 {
-    private string _currentVersion;
-    private string _newVersion;
-    private string _releaseNotes;
-    private int    _assetId;
-    private bool   _isDownloading;
-    private int    _downloadProgress;
-    private string _downloadStatus = string.Empty;
+    private string              _currentVersion;
+    private string              _newVersion;
+    private string              _releaseNotes;
+    private int                 _assetId;
+    private bool                _isDownloading;
+    private string              _downloadStatus = string.Empty;
     private List<GithubReleaseInfo> _releases;
+    private List<ReleaseTabItem>    _releaseTabItems;
 
     public string CurrentVersion
     {
@@ -50,12 +51,6 @@ public class UpdateViewModel : ViewModelBase
 
     public bool IsIdle => !_isDownloading;
 
-    public int DownloadProgress
-    {
-        get => _downloadProgress;
-        set => SetField(ref _downloadProgress, value);
-    }
-
     public string DownloadStatus
     {
         get => _downloadStatus;
@@ -68,12 +63,58 @@ public class UpdateViewModel : ViewModelBase
         set => SetField(ref _releases, value);
     }
 
-    public static UpdateViewModel FromUpdateInfo(UpdateInfo info) => new()
+    public List<ReleaseTabItem> ReleaseTabItems
     {
-        CurrentVersion = info.CurrentVersion,
-        NewVersion     = info.NewVersion,
-        ReleaseNotes   = info.ReleaseNotes,
-        AssetId        = info.GitHubAssetId,
-        Releases       = info.IntermediateReleases
-    };
+        get => _releaseTabItems;
+        set => SetField(ref _releaseTabItems, value);
+    }
+
+    public static UpdateViewModel FromUpdateInfo(UpdateInfo info)
+    {
+        var vm = new UpdateViewModel
+        {
+            CurrentVersion = info.CurrentVersion,
+            NewVersion     = info.NewVersion,
+            ReleaseNotes   = info.ReleaseNotes,
+            AssetId        = info.GitHubAssetId,
+            Releases       = info.IntermediateReleases
+        };
+        vm.BuildTabItems();
+        return vm;
+    }
+
+    private void BuildTabItems()
+    {
+        var items = new List<ReleaseTabItem>();
+
+        // "Tüm Değişiklikler" — tüm sürümlerin notlarını birleştir
+        var allSb = new StringBuilder();
+        if (_releases != null)
+        {
+            foreach (var r in _releases)
+            {
+                if (!string.IsNullOrWhiteSpace(r.Body))
+                    allSb.AppendLine(r.Body).AppendLine();
+            }
+        }
+        if (allSb.Length == 0 && !string.IsNullOrWhiteSpace(_releaseNotes))
+            allSb.Append(_releaseNotes);
+
+        items.Add(new ReleaseTabItem { Header = "Tüm Değişiklikler", Content = allSb.ToString().Trim() });
+
+        // Her sürüm için ayrı sekme
+        if (_releases != null)
+        {
+            foreach (var r in _releases)
+            {
+                items.Add(new ReleaseTabItem
+                {
+                    Header  = r.TagName ?? r.Name ?? "?",
+                    Content = r.Body ?? string.Empty
+                });
+            }
+        }
+
+        ReleaseTabItems = items;
+    }
 }
