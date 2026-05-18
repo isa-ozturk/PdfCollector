@@ -6,10 +6,12 @@
 
 ## 🐞 Hata Düzeltmeleri
 
+- switch to dotnet publish with explicit output dir
 - rename version env var to avoid MSBuild Version property conflict
 
 ## 🧹 Diğer
 
+- update changelog and version for v1.2.0
 - update changelog and version for v1.2.0
 
 ## 📌 Diğer Commitler
