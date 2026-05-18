@@ -50,10 +50,12 @@ jobs:
           PREV="${{ steps.previous.outputs.previous }}"
           TODAY="$(date +'%d %B %Y')"
 
+          NEW_SECTION="$(mktemp)"
+
           {
             echo "# $TAG - $TODAY"
             echo
-          } > CHANGELOG.md
+          } > "$NEW_SECTION"
 
           if [ -n "$PREV" ]; then
             RANGE="$PREV..$TAG"
@@ -72,13 +74,13 @@ jobs:
             grep -Ei "$pattern" subjects.txt > "$tmp_file" || true
 
             if [ -s "$tmp_file" ]; then
-              echo "## $title" >> CHANGELOG.md
-              echo >> CHANGELOG.md
+              echo "## $title" >> "$NEW_SECTION"
+              echo >> "$NEW_SECTION"
               while IFS= read -r line; do
                 clean_line="$(echo "$line" | sed -E 's/^(feat|fix|chore)(\([^)]*\))?:[[:space:]]*//I')"
-                echo "- $clean_line" >> CHANGELOG.md
+                echo "- $clean_line" >> "$NEW_SECTION"
               done < "$tmp_file"
-              echo >> CHANGELOG.md
+              echo >> "$NEW_SECTION"
             fi
 
             rm -f "$tmp_file"
@@ -92,15 +94,25 @@ jobs:
           grep -Eiv '^(feat|fix|chore)(\([^)]*\))?:' subjects.txt > "$OTHER_COMMITS" || true
 
           if [ -s "$OTHER_COMMITS" ]; then
-            echo "## 📌 Diğer Commitler" >> CHANGELOG.md
-            echo >> CHANGELOG.md
+            echo "## 📌 Diğer Commitler" >> "$NEW_SECTION"
+            echo >> "$NEW_SECTION"
             while IFS= read -r line; do
-              [ -n "$line" ] && echo "- $line" >> CHANGELOG.md
+              [ -n "$line" ] && echo "- $line" >> "$NEW_SECTION"
             done < "$OTHER_COMMITS"
-            echo >> CHANGELOG.md
+            echo >> "$NEW_SECTION"
           fi
 
           rm -f subjects.txt "$OTHER_COMMITS"
+
+          # Mevcut CHANGELOG varsa yeni bölümü başa ekle, yoksa sadece yeni bölümü kullan
+          if [ -f CHANGELOG.md ] && [ -s CHANGELOG.md ]; then
+            { cat "$NEW_SECTION"; echo "---"; echo; cat CHANGELOG.md; } > changelog_merged.md
+            mv changelog_merged.md CHANGELOG.md
+          else
+            cp "$NEW_SECTION" CHANGELOG.md
+          fi
+
+          rm -f "$NEW_SECTION"
 
       - name: Write version to file
         shell: bash
